@@ -1,0 +1,22 @@
+{
+  "name": "jiangwang/flysystem-tos",
+  "description": "Flysystem adapter for the TOS storage.",
+  "autoload": {
+    "psr-4": {
+      "Jiangwang\\FlysystemTos\\": "src/"
+    }
+  },
+  "authors": [
+    {
+      "name": "jsogn",
+      "email": "jbanxian@gmail.com"
+    }
+  ],
+  "require": {
+    "php": ">=8.0.0",
+    "league/flysystem": "^3.0",
+    "ext-json": "*",
+    "guzzlehttp/guzzle": "^7.8"
+  },
+  "license": "MIT"
+}

@@ -3,7 +3,8 @@
   "description": "Flysystem adapter for the TOS storage.",
   "autoload": {
     "psr-4": {
-      "Jiangwang\\FlysystemTos\\": "src/"
+      "Jiangwang\\FlysystemTos\\": "src/",
+      "Tos\\": "src/Tos"
     }
   },
   "authors": [

@@ -7,21 +7,19 @@ use Psr\Http\Message\StreamInterface;
 
 class StreamReader implements StreamInterface
 {
+    const DefaultChunkSize = 65536;
     /**
      * @var StreamInterface
      */
     private $origin;
-
     /**
      * @var int
      */
     private $contentLength;
-
     /**
      * @var int
      */
     private $remainSize;
-
     /**
      * @var string
      */
@@ -31,8 +29,6 @@ class StreamReader implements StreamInterface
      */
     private $calcCrc64;
 
-    const DefaultChunkSize = 65536;
-
     public function __construct(StreamInterface $origin = null, $contentLength = 0, $calcCrc64 = false)
     {
         $this->origin = $origin;
@@ -40,16 +36,51 @@ class StreamReader implements StreamInterface
             $contentLength = 0;
         }
         $this->contentLength = intval($contentLength);
-        $this->remainSize = $this->contentLength;
-        $this->calcCrc64 = $calcCrc64;
+        $this->remainSize    = $this->contentLength;
+        $this->calcCrc64     = $calcCrc64;
     }
 
-    public function __toString()
+    public function __toString(): string
     {
         return $this->getContents();
     }
 
-    public function close()
+    public function getContents(): string
+    {
+        if (isset($this->result)) {
+            return $this->result;
+        }
+        $result = '';
+        while (!$this->eof()) {
+            $chunk  = $this->read(self::DefaultChunkSize);
+            $result .= $chunk;
+        }
+        $this->result = $result;
+        return $result;
+    }
+
+    public function eof(): bool
+    {
+        return $this->remainSize <= 0;
+    }
+
+    public function read($length): string
+    {
+        if ($this->eof()) {
+            return '';
+        }
+
+        if (!$length || $length <= 0) {
+            $length = self::DefaultChunkSize;
+        }
+
+        $chunkSizeOnce    = $this->remainSize >= $length ? $length : $this->remainSize;
+        $chunk            = $this->origin->read($chunkSizeOnce);
+        $this->remainSize -= strlen($chunk);
+        return $chunk;
+    }
+
+    public function close(): void
     {
         if ($this->origin) {
             $this->origin->close();
@@ -64,12 +95,12 @@ class StreamReader implements StreamInterface
         return null;
     }
 
-    public function getSize()
+    public function getSize(): ?int
     {
         return $this->contentLength;
     }
 
-    public function tell()
+    public function tell(): int
     {
         if ($this->origin) {
             $this->origin->tell();
@@ -77,69 +108,34 @@ class StreamReader implements StreamInterface
         return 0;
     }
 
-    public function eof()
-    {
-        return $this->remainSize <= 0;
-    }
-
-    public function isSeekable()
+    public function isSeekable(): bool
     {
         return false;
     }
 
-    public function seek($offset, $whence = SEEK_SET)
+    public function seek($offset, $whence = SEEK_SET): void
     {
         throw new RuntimeException('Stream is not seekable');
     }
 
-    public function rewind()
+    public function rewind(): void
     {
         throw new RuntimeException('Stream is not seekable');
     }
 
-    public function isWritable()
+    public function isWritable(): bool
     {
         return false;
     }
 
-    public function write($string)
+    public function write($string): int
     {
         throw new RuntimeException('Stream is not writable');
     }
 
-    public function isReadable()
+    public function isReadable(): bool
     {
         return true;
-    }
-
-    public function read($length)
-    {
-        if ($this->eof()) {
-            return '';
-        }
-
-        if (!$length || $length <= 0) {
-            $length = self::DefaultChunkSize;
-        }
-
-        $chunkSizeOnce = $this->remainSize >= $length ? $length : $this->remainSize;
-        $chunk = $this->origin->read($chunkSizeOnce);
-        $this->remainSize -= strlen($chunk);
-        return $chunk;
-    }
-
-    public function getContents()
-    {
-        if (isset($this->result)) {
-            return $this->result;
-        }
-        $result = '';
-        while (!$this->eof()) {
-            $chunk = $this->read(self::DefaultChunkSize);
-            $result .= $chunk;
-        }
-        $this->result = $result;
-        return $result;
     }
 
     public function getMetadata($key = null)

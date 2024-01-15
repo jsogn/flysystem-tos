@@ -146,9 +146,9 @@ class TosClient
             $this->cp = $configOrRegion;
         } else if (is_string($configOrRegion)) {
             $this->cp = new ConfigParser([
-                'region' => trim($configOrRegion),
-                'ak' => $ak,
-                'sk' => $sk,
+                'region'   => trim($configOrRegion),
+                'ak'       => $ak,
+                'sk'       => $sk,
                 'endpoint' => $endpoint,
             ]);
         } else {
@@ -156,20 +156,20 @@ class TosClient
         }
 
         $this->client = new Client([
-            'timeout' => 0,
-            'read_timeout' => $this->cp->getSocketTimeout() / 1000,
+            'timeout'         => 0,
+            'read_timeout'    => $this->cp->getSocketTimeout() / 1000,
             'connect_timeout' => $this->cp->getConnectionTimeout() / 1000,
             'allow_redirects' => false,
-            'verify' => $this->cp->isEnableVerifySSL(),
-            'http_errors' => false,
-            'decode_content' => false,
+            'verify'          => $this->cp->isEnableVerifySSL(),
+            'http_errors'     => false,
+            'decode_content'  => false,
         ]);
     }
 
     public function __call($method, $args)
     {
         $method = ucfirst($method);
-        $input = null;
+        $input  = null;
         if (count($args) === 0) {
             if ($method === 'ListBuckets') {
                 $input = new ListBucketsInput();
@@ -180,7 +180,7 @@ class TosClient
         $transFn = 'trans' . $method . 'Input';
         $parseFn = 'parse' . $method . 'Output';
         if (is_callable(__CLASS__ . '::' . $transFn) && is_callable(__CLASS__ . '::' . $parseFn)) {
-            $body = null;
+            $body      = null;
             $closeBody = false;
             try {
                 if ($method === 'GetObjectToFile') {
@@ -190,7 +190,7 @@ class TosClient
                 }
 
                 if ($method === 'GetObject') {
-                    $request = self::$transFn($input);
+                    $request  = self::$transFn($input);
                     $response = $this->doRequest($request, $input->isStreamMode());
                     return self::$parseFn($response, $input->isStreamMode());
                 }
@@ -203,7 +203,7 @@ class TosClient
                         $request->headers[Constant::HeaderContentLength] = 0;
                     }
                 }
-                $body = $request->body;
+                $body     = $request->body;
                 $response = $this->doRequest($request);
                 if ($method === 'UploadPart' || $method === 'UploadPartCopy' || $method == 'UploadPartFromFile') {
                     return self::$parseFn($response, $input->getPartNumber());
@@ -240,7 +240,8 @@ class TosClient
      */
     private function &doRequest(HttpRequest &$request, $stream = false)
     {
-        $response = $this->doRequestAsync($request, $stream);
+        \Swoole\Runtime::enableCoroutine(false);
+        $response = $this->doRequestAsync($request, $stream)->wait();
         return $response;
     }
 
@@ -249,11 +250,11 @@ class TosClient
         list($method, $requestUri, $headers, $body) = $this->prepareRequest($request);
         $options = [
             'headers' => $headers,
-            'stream' => $stream,
-            'body' => $body,
+            'stream'  => $stream,
+            'body'    => $body,
         ];
 
-        $promise = $this->client->request($method, $requestUri, $options);
+        $promise = $this->client->requestAsync($method, $requestUri, $options);
         return $promise;
     }
 
@@ -262,12 +263,12 @@ class TosClient
         self::sign($request, $this->cp->getHost($request->bucket), $this->cp->getAk(),
             $this->cp->getSk(), $this->cp->getSecurityToken(), $this->cp->getRegion());
 
-        $headers = $request->headers;
-        $headers[Constant::HeaderUserAgent] = $this->cp->getUserAgent();
+        $headers                             = $request->headers;
+        $headers[Constant::HeaderUserAgent]  = $this->cp->getUserAgent();
         $headers[Constant::HeaderConnection] = 'Keep-Alive';
-        $requestUri = $this->cp->getEndpoint($request->bucket, $request->key);
-        $queries = $request->queries;
-        $body = $request->body;
+        $requestUri                          = $this->cp->getEndpoint($request->bucket, $request->key);
+        $queries                             = $request->queries;
+        $body                                = $request->body;
 
         if ($queries && count($queries) > 0) {
             $requestUri .= '?';
@@ -303,12 +304,12 @@ class TosClient
         }
 
         if ($bucket = $input->getBucket()) {
-            $bucket = self::checkBucket($bucket);
+            $bucket          = self::checkBucket($bucket);
             $request->bucket = $bucket;
         }
 
         if ($key = $input->getKey()) {
-            $key = self::checkKey($key);
+            $key          = self::checkKey($key);
             $request->key = $key;
         }
 
@@ -335,27 +336,27 @@ class TosClient
             }
 
             $request->headers[Constant::HeaderHost] = $this->cp->getHost($request->bucket, $domain);
-            $signedHeaders = null;
-            $canonicalHeaders = self::getCanonicalHeaders($request, $signedHeaders, $signedHeader);
+            $signedHeaders                          = null;
+            $canonicalHeaders                       = self::getCanonicalHeaders($request, $signedHeaders, $signedHeader);
 
-            $longDate = null;
-            $shortDate = null;
+            $longDate        = null;
+            $shortDate       = null;
             $credentialScope = null;
-            $region = $this->cp->getRegion();
+            $region          = $this->cp->getRegion();
             self::prepareDateAndCredentialScope($longDate, $shortDate, $credentialScope, $region);
 
-            $request->queries['X-Tos-Algorithm'] = self::$algorithm;
-            $request->queries['X-Tos-Credential'] = $ak . '/' . $credentialScope;
-            $request->queries['X-Tos-Date'] = $longDate;
-            $request->queries['X-Tos-Expires'] = intval($expires = $input->getExpires()) ? $expires : 3600;
+            $request->queries['X-Tos-Algorithm']     = self::$algorithm;
+            $request->queries['X-Tos-Credential']    = $ak . '/' . $credentialScope;
+            $request->queries['X-Tos-Date']          = $longDate;
+            $request->queries['X-Tos-Expires']       = intval($expires = $input->getExpires()) ? $expires : 3600;
             $request->queries['X-Tos-SignedHeaders'] = $signedHeaders;
             if ($securityToken = $this->cp->getSecurityToken()) {
                 $request->queries['X-Tos-Security-Token'] = $securityToken;
             }
             $canonicalRequest = self::getCanonicalRequest($request, $canonicalHeaders, $signedHeaders, true);
 
-            $stringToSign = self::getStringToSign($canonicalRequest, $longDate, $credentialScope);
-            $signature = self::getSignature($stringToSign, $shortDate, $sk, $region);
+            $stringToSign                        = self::getStringToSign($canonicalRequest, $longDate, $credentialScope);
+            $signature                           = self::getSignature($stringToSign, $shortDate, $sk, $region);
             $request->queries['X-Tos-Signature'] = rawurlencode($signature);
         }
 
